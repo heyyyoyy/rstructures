@@ -54,7 +54,7 @@ impl<T> SinglyLinkedList<T> {
 
     fn iter(&self) -> Iter<'_, T> {
         Iter {
-            head: &self.head,
+            head: self.head.as_deref(),
             size: self.size,
         }
     }
@@ -72,7 +72,7 @@ struct IntoListIterator<T> {
 }
 
 struct Iter<'a, T> {
-    head: &'a Node<T>,
+    head: Option<&'a ListNode<T>>,
     size: usize,
 }
 
@@ -101,8 +101,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.size > 0 {
-            self.head.as_ref().map(|node| {
-                self.head = &node.next;
+            self.head.map(|node| {
+                self.head = node.next.as_deref();
                 self.size -= 1;
                 &node.value
             })
