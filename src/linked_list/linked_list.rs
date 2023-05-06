@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    marker::PhantomData,
     rc::{Rc, Weak},
 };
 
@@ -42,6 +43,15 @@ impl<T> LinkedList<T> {
 
     fn is_empty(&self) -> bool {
         self.size == 0
+    }
+
+    fn iter(&self) -> Iter<'_, T> {
+        Iter {
+            head: self.head.clone(),
+            tail: self.tail.clone(),
+            size: self.size,
+            marker: PhantomData,
+        }
     }
 
     fn push_back(&mut self, value: T) {
@@ -117,7 +127,15 @@ impl<T> LinkedList<T> {
 }
 
 struct IntoIter<T> {
-    iter: LinkedList<T>
+    iter: LinkedList<T>,
+}
+
+#[derive(Debug)]
+struct Iter<'a, T> {
+    head: Option<Rc<RefCell<Node<T>>>>,
+    tail: Option<Rc<RefCell<Node<T>>>>,
+    size: usize,
+    marker: PhantomData<&'a Node<T>>,
 }
 
 impl<T> IntoIterator for LinkedList<T> {
@@ -125,7 +143,7 @@ impl<T> IntoIterator for LinkedList<T> {
     type IntoIter = IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        Self::IntoIter {iter: self}
+        Self::IntoIter { iter: self }
     }
 }
 
@@ -144,6 +162,40 @@ impl<T> Iterator for IntoIter<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.pop_front()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.size > 0 {
+            self.head.take().map(|node| {
+                let n = unsafe { &*node.as_ptr() };
+                self.size -= 1;
+                self.head = n.next.clone();
+                &n.value
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.size > 0 {
+            self.tail.take().map(|node| {
+                let n = unsafe { &*node.as_ptr() };
+                self.size -= 1;
+                self.tail = n
+                    .prev
+                    .clone()
+                    .map(|w| w.upgrade().expect("value was destroyed"));
+                &n.value
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -197,9 +249,33 @@ mod tests {
 
     #[test]
     fn test_into_iter() {
-        let list = LinkedList::<usize>::from([0,1,2,3]);
+        let list = LinkedList::<usize>::from([0, 1, 2, 3]);
         for (i, v) in list.into_iter().enumerate() {
             assert_eq!(i, v);
         }
+    }
+
+    #[test]
+    fn test_iter() {
+        let list = LinkedList::<usize>::from([0, 1, 2, 3]);
+        let mut iter = list.iter();
+        for ref i in 0..4 {
+            assert_eq!(iter.next(), Some(i));
+        }
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
+    }
+
+    #[test]
+    fn test_iter_rev() {
+        let list = LinkedList::<usize>::from([0, 1, 2, 3]);
+        let mut iter = list.iter();
+
+        assert_eq!(iter.next_back(), Some(&3));
+        assert_eq!(iter.next(), Some(&0));
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next_back(), Some(&2));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
     }
 }
