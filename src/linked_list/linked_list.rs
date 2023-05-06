@@ -116,6 +116,37 @@ impl<T> LinkedList<T> {
     }
 }
 
+struct IntoIter<T> {
+    iter: LinkedList<T>
+}
+
+impl<T> IntoIterator for LinkedList<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter {iter: self}
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for LinkedList<T> {
+    fn from(value: [T; N]) -> Self {
+        let mut list = Self::new();
+        for i in value {
+            list.push_back(i);
+        }
+        list
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.pop_front()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +193,13 @@ mod tests {
         assert_eq!(list.pop_front(), Some(2));
         assert_eq!(list.pop_front(), None);
         assert!(list.is_empty());
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let list = LinkedList::<usize>::from([0,1,2,3]);
+        for (i, v) in list.into_iter().enumerate() {
+            assert_eq!(i, v);
+        }
     }
 }
